@@ -1,0 +1,13 @@
+import fs from "node:fs";
+const dir = "C:/Users/shuns/OneDrive/デスクトップ/world-heritage-app/data";
+const j = JSON.parse(fs.readFileSync(dir+"/danger_raw.json","utf8"));
+const wt = j.parse.wikitext;
+const start = wt.search(/==+\s*Current list\s*==+/);
+const end = wt.search(/==+\s*Previously listed sites\s*==+/);
+const slice = wt.slice(start, end);
+const refs = new Set();
+for (const m of slice.matchAll(/whc\.unesco\.org\/[^\s\]|}]*?\/(\d{1,4})\b/g)) refs.add(parseInt(m[1],10));
+const arr = [...refs].sort((a,b)=>a-b);
+fs.writeFileSync(dir+"/danger_refs.json", JSON.stringify(arr));
+console.log("current danger refs:", arr.length);
+console.log(arr.join(","));

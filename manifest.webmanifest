@@ -1,0 +1,15 @@
+{
+  "name": "世界遺産ずかん",
+  "short_name": "世界遺産",
+  "description": "世界遺産を検索・閲覧して制覇状況を記録できる図鑑アプリ",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f1ea",
+  "theme_color": "#1f6f54",
+  "lang": "ja",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
