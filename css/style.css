@@ -147,6 +147,8 @@ select {
   align-items: flex-end;
   justify-content: center;
 }
+/* hidden 属性で確実に閉じる（.detail-overlay の display:flex が [hidden] を上書きするのを防ぐ） */
+.detail-overlay[hidden] { display: none; }
 .detail-card {
   background: var(--bg);
   width: 100%;
