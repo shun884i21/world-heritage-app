@@ -1,5 +1,5 @@
 // 世界遺産ずかん Service Worker
-const CACHE = "wh-v3";
+const CACHE = "wh-v4";
 const ASSETS = [
   "./",
   "./index.html",
@@ -10,7 +10,12 @@ const ASSETS = [
 ];
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  // cache:"reload" でブラウザのHTTPキャッシュを飛ばし、必ずネットワークから最新を取る
+  e.waitUntil(
+    caches.open(CACHE)
+      .then((c) => Promise.all(ASSETS.map((u) => fetch(u, { cache: "reload" }).then((res) => { if (res.ok) return c.put(u, res); }))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener("activate", (e) => {

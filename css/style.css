@@ -229,6 +229,124 @@ select {
 
 .empty { text-align: center; color: var(--muted); padding: 40px 20px; font-size: 14px; }
 
+/* ---- 今日の世界遺産 ---- */
+.today-box {
+  background: linear-gradient(135deg, var(--green), var(--green-d));
+  color: #fff;
+  border-radius: var(--radius);
+  padding: 14px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+.today-label { font-size: 12px; opacity: 0.85; margin-bottom: 8px; }
+.today-body { display: flex; gap: 12px; align-items: center; }
+.today-img { width: 92px; height: 69px; object-fit: cover; border-radius: 10px; flex-shrink: 0; background: rgba(255,255,255,0.2); }
+.today-name { font-size: 15px; font-weight: 700; line-height: 1.4; }
+.today-sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
+.today-hint { font-size: 11px; color: #ffd98a; margin-top: 4px; }
+
+/* ---- ドーナツグラフ ---- */
+.donut-wrap {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 14px;
+  box-shadow: var(--shadow);
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.donut-svg { position: relative; width: 128px; flex-shrink: 0; }
+.donut-svg svg { width: 100%; display: block; transform: rotate(0deg); }
+.donut-center {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.donut-center .dc-num { font-size: 20px; font-weight: 800; color: var(--green); line-height: 1.1; }
+.donut-center .dc-lbl { font-size: 10px; color: var(--muted); }
+.donut-legend { flex: 1; min-width: 0; }
+.lg-row { display: flex; align-items: center; gap: 7px; font-size: 13px; margin: 4px 0; }
+.lg-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.lg-name { flex: 1; }
+.lg-val { font-weight: 700; color: var(--ink); }
+.lg-val small { font-weight: 400; color: var(--muted); }
+
+/* ---- 年代チャート ---- */
+.decade-chart {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px 10px 8px;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 150px;
+}
+.dc-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; }
+.dc-count { font-size: 10px; color: var(--muted); }
+.dc-bar-outer { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center; }
+.dc-bar { width: 70%; max-width: 34px; background: linear-gradient(180deg, var(--gold), var(--green)); border-radius: 6px 6px 2px 2px; }
+.dc-x { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.chart-note { font-size: 12px; color: var(--muted); margin: 6px 2px 12px; }
+
+/* ---- ランキング・記録 ---- */
+.bar-row.clickable { cursor: pointer; }
+.bar-row.clickable:active { opacity: 0.7; }
+.brank { width: 22px; flex-shrink: 0; text-align: center; font-size: 11px; font-weight: 800; color: var(--gold); }
+.bval.wide { width: 88px; }
+.bval small { color: var(--muted); }
+.trivia.clickable { cursor: pointer; }
+.trivia.clickable:active { opacity: 0.7; }
+.trivia.today-trivia { border-left-color: var(--green); background: #eaf3ee; }
+
+/* ---- 称号カード ---- */
+.rank-card {
+  background: linear-gradient(135deg, #2b2620, #4a4033);
+  color: #fff;
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.rank-icon { font-size: 44px; line-height: 1; }
+.rank-body { flex: 1; min-width: 0; }
+.rank-label { font-size: 11px; opacity: 0.7; }
+.rank-name { font-size: 21px; font-weight: 800; color: #ffd98a; margin: 1px 0 8px; }
+.rank-track { background: rgba(255,255,255,0.18); border-radius: 999px; height: 10px; overflow: hidden; }
+.rank-fill { height: 100%; background: linear-gradient(90deg, var(--gold), #ffd98a); }
+.rank-next { font-size: 12px; opacity: 0.9; margin-top: 6px; }
+.rank-next b { color: #ffd98a; }
+
+/* ---- ミニ統計 ---- */
+.mini-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 12px; }
+.mini-cell { background: var(--bg); border-radius: 10px; padding: 8px 4px; }
+.mini-cell .num { font-size: 17px; font-weight: 800; color: var(--green); }
+.mini-cell .num small { font-size: 11px; color: var(--muted); font-weight: 400; }
+.mini-cell .lbl { font-size: 10px; color: var(--muted); }
+
+/* ---- 実績バッジ ---- */
+.ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(105px, 1fr)); gap: 8px; }
+.ach {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 10px 8px;
+  text-align: center;
+  box-shadow: var(--shadow);
+  opacity: 0.62;
+  border: 1.5px solid transparent;
+}
+.ach.earned { opacity: 1; border-color: var(--gold); background: #fffaf0; }
+.ach-icon { font-size: 26px; }
+.ach.earned .ach-icon { filter: drop-shadow(0 1px 3px rgba(199,154,58,0.5)); }
+.ach:not(.earned) .ach-icon { filter: grayscale(1); }
+.ach-name { font-size: 12px; font-weight: 700; margin-top: 3px; }
+.ach-desc { font-size: 10px; color: var(--muted); margin-top: 1px; line-height: 1.4; }
+.ach-got { font-size: 10px; color: var(--gold); font-weight: 800; margin-top: 4px; }
+.ach-track { background: #e6e0d2; border-radius: 999px; height: 5px; overflow: hidden; margin-top: 6px; }
+.ach-fill { height: 100%; background: var(--green); }
+.ach-prog { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
 /* ---- タブバー ---- */
 .tabbar {
   position: fixed;

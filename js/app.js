@@ -236,13 +236,74 @@ function loadLeaflet() {
 function closeDetail() { document.getElementById("detail").hidden = true; }
 
 // ===== 統計・うんちく =====
+const TYPE_COLOR = { cultural: "#2c5b88", natural: "#2f6b3c", mixed: "#c79a3a", unknown: "#a8a293" };
+const REGION_COLORS = ["#1f6f54", "#2c5b88", "#c79a3a", "#c0492f", "#7b5ea7", "#3a8fa3", "#8a6d3b", "#a8a293"];
+
+// 日付シード乱数（毎日変わる「今日の◯◯」用）
+function daySeed() {
+  const d = new Date();
+  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+}
+function seededIndex(seed, len) {
+  let x = seed % 2147483647;
+  x = (x * 48271) % 2147483647;
+  x = (x * 48271) % 2147483647;
+  return x % len;
+}
+
+// SVGドーナツグラフ
+function donutSVG(segments, centerLabel, centerSub) {
+  const total = segments.reduce((a, s) => a + s.value, 0) || 1;
+  const R = 15.9155; // 円周がちょうど100になる半径
+  let offset = 25;   // 12時の位置から開始
+  const circles = segments.map((seg) => {
+    const pct = (seg.value / total) * 100;
+    const c = `<circle r="${R}" cx="21" cy="21" fill="transparent" stroke="${seg.color}" stroke-width="6"
+      stroke-dasharray="${pct} ${100 - pct}" stroke-dashoffset="${offset}"></circle>`;
+    offset -= pct;
+    return c;
+  }).join("");
+  const legend = segments.map((seg) =>
+    `<div class="lg-row"><span class="lg-dot" style="background:${seg.color}"></span>
+     <span class="lg-name">${esc(seg.label)}</span>
+     <span class="lg-val">${seg.value}<small>（${(seg.value / total * 100).toFixed(1)}%）</small></span></div>`
+  ).join("");
+  return `<div class="donut-wrap">
+    <div class="donut-svg">
+      <svg viewBox="0 0 42 42">${circles}</svg>
+      <div class="donut-center"><div class="dc-num">${centerLabel}</div><div class="dc-lbl">${centerSub}</div></div>
+    </div>
+    <div class="donut-legend">${legend}</div>
+  </div>`;
+}
+
+// 年代別 登録数チャート
+function decadeChartHTML() {
+  const bins = {};
+  SITES.forEach((s) => { if (s.year) { const d = Math.floor(s.year / 10) * 10; bins[d] = (bins[d] || 0) + 1; } });
+  const decades = Object.keys(bins).map(Number).sort((a, b) => a - b);
+  const max = Math.max(...decades.map((d) => bins[d]));
+  // 最多登録年
+  const byYear = {};
+  SITES.forEach((s) => { if (s.year) byYear[s.year] = (byYear[s.year] || 0) + 1; });
+  const peak = Object.entries(byYear).sort((a, b) => b[1] - a[1])[0];
+  const cols = decades.map((d) => {
+    const h = Math.max(4, Math.round(bins[d] / max * 100));
+    return `<div class="dc-col"><div class="dc-count">${bins[d]}</div>
+      <div class="dc-bar-outer"><div class="dc-bar" style="height:${h}%"></div></div>
+      <div class="dc-x">${String(d).slice(2)}s</div></div>`;
+  }).join("");
+  return `<div class="decade-chart">${cols}</div>
+    <p class="chart-note">年代別の登録数。1年で最も多かったのは <b>${peak[0]}年の${peak[1]}件</b> です。</p>`;
+}
+
 function renderStats() {
   const el = document.getElementById("statsContent");
   const total = SITES.length;
-  const cul = SITES.filter((s) => s.type === "cultural").length;
-  const nat = SITES.filter((s) => s.type === "natural").length;
-  const mix = SITES.filter((s) => s.type === "mixed").length;
+  const byType = { cultural: 0, natural: 0, mixed: 0, unknown: 0 };
+  SITES.forEach((s) => byType[s.type] = (byType[s.type] || 0) + 1);
   const dgr = SITES.filter((s) => s.danger).length;
+  const descCount = Object.keys(DESCRIPTIONS).length;
 
   // 国別TOP15
   const counts = {};
@@ -250,34 +311,108 @@ function renderStats() {
   const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 15);
   const maxC = top[0][1];
 
-  // 登録が古い順TOP5
-  const oldest = SITES.filter((s) => s.year).sort((a, b) => a.year - b.year).slice(0, 5);
+  // 地域別
+  const regionCounts = {};
+  SITES.forEach((s) => { const r = regionOf(s.countries[0] || ""); regionCounts[r] = (regionCounts[r] || 0) + 1; });
+  const regionSegs = Object.entries(regionCounts).sort((a, b) => b[1] - a[1])
+    .map(([r, n], i) => ({ label: r, value: n, color: REGION_COLORS[i % REGION_COLORS.length] }));
+
+  // 今日の1件（解説つきの遺産から日替わり）
+  const described = SITES.filter((s) => DESCRIPTIONS[s.id]);
+  const todaysSite = described.length ? described[seededIndex(daySeed(), described.length)] : null;
+  const todaysTrivia = TRIVIA[daySeed() % TRIVIA.length];
+
+  // 記録コーナー
+  const oldest = SITES.filter((s) => s.year).sort((a, b) => a.year - b.year);
+  const newestYear = Math.max(...SITES.map((s) => s.year || 0));
+  const newestCount = SITES.filter((s) => s.year === newestYear).length;
+  const multi = [...SITES].sort((a, b) => b.countries.length - a.countries.length)[0];
+  const withLat = SITES.filter((s) => s.lat != null);
+  const north = withLat.reduce((a, b) => (a.lat > b.lat ? a : b));
+  const south = withLat.reduce((a, b) => (a.lat < b.lat ? a : b));
+  const longName = [...SITES].sort((a, b) => b.name.length - a.name.length)[0];
+  const records = [
+    { i: "📜", h: "いちばん古い登録", t: `${oldest[0].year}年。最初の年には${SITES.filter((s) => s.year === oldest[0].year).length}件が一気に登録されました。`, id: oldest[0].id, n: oldest[0].name },
+    { i: "🆕", h: "いちばん新しい登録", t: `${newestYear}年に${newestCount}件が仲間入りしました。` },
+    { i: "🤝", h: "最多の国にまたがる遺産", t: `${multi.countries.length}か国で共有されています。`, id: multi.id, n: multi.name },
+    { i: "🧊", h: "最北端の世界遺産", t: `北緯${north.lat.toFixed(1)}度（${esc(north.countries.join("・"))}）`, id: north.id, n: north.name },
+    { i: "🐧", h: "最南端の世界遺産", t: `南緯${Math.abs(south.lat).toFixed(1)}度（${esc(south.countries.join("・"))}）`, id: south.id, n: south.name },
+    { i: "✍️", h: "いちばん長い名前", t: `${longName.name.length}文字あります。`, id: longName.id, n: longName.name },
+  ];
 
   el.innerHTML = `
+    <div class="today-box" ${todaysSite ? `onclick="openDetail(${todaysSite.id})"` : ""}>
+      <div class="today-label">🎁 今日の世界遺産（毎日変わります）</div>
+      ${todaysSite ? `
+        <div class="today-body">
+          ${todaysSite.image ? `<img class="today-img" src="${imgUrl(todaysSite.image, 300)}" alt="" onerror="this.style.display='none'">` : ""}
+          <div>
+            <div class="today-name">${esc(todaysSite.name)}</div>
+            <div class="today-sub">${esc(todaysSite.countries.join("・"))}${todaysSite.year ? " / " + todaysSite.year + "年登録" : ""}</div>
+            <div class="today-hint">タップして解説を読む →</div>
+          </div>
+        </div>` : ""}
+    </div>
+
     <h2>📊 全体の数字</h2>
     <div class="stat-cards">
       <div class="stat-cell"><div class="num">${total}</div><div class="lbl">総物件数</div></div>
-      <div class="stat-cell"><div class="num">${cul}</div><div class="lbl">文化遺産</div></div>
-      <div class="stat-cell"><div class="num">${nat}</div><div class="lbl">自然遺産</div></div>
-      <div class="stat-cell"><div class="num">${mix}</div><div class="lbl">複合遺産</div></div>
-      <div class="stat-cell"><div class="num">${dgr}</div><div class="lbl">危機遺産</div></div>
       <div class="stat-cell"><div class="num">${Object.keys(counts).length}</div><div class="lbl">国・地域</div></div>
+      <div class="stat-cell"><div class="num">${dgr}</div><div class="lbl">危機遺産</div></div>
     </div>
 
+    <h2>🥧 分類の内訳</h2>
+    ${donutSVG([
+      { label: "文化遺産", value: byType.cultural, color: TYPE_COLOR.cultural },
+      { label: "自然遺産", value: byType.natural, color: TYPE_COLOR.natural },
+      { label: "複合遺産", value: byType.mixed, color: TYPE_COLOR.mixed },
+      { label: "分類不明", value: byType.unknown, color: TYPE_COLOR.unknown },
+    ].filter((s) => s.value > 0), total, "件")}
+
+    <h2>🗺 地域別の分布</h2>
+    ${donutSVG(regionSegs, Object.keys(regionCounts).length, "地域")}
+
+    <h2>📈 登録数のあゆみ</h2>
+    ${decadeChartHTML()}
+
     <h2>🏆 国別 保有数ランキング</h2>
-    ${top.map(([c, n]) => bar(c, n, maxC)).join("")}
+    <p class="chart-note">タップするとその国の遺産一覧にジャンプします。</p>
+    ${top.map(([c, n], i) => bar(c, n, maxC, { rank: i + 1, country: c })).join("")}
 
-    <h2>📜 登録が古い世界遺産</h2>
-    ${oldest.map((s) => `<div class="trivia"><div class="h">${s.year}年</div><div class="t">${esc(s.name)}（${esc(s.countries.join("・"))}）</div></div>`).join("")}
+    <h2>🎖 記録コーナー</h2>
+    ${records.map((r) => `<div class="trivia ${r.id ? "clickable" : ""}" ${r.id ? `onclick="openDetail(${r.id})"` : ""}>
+      <div class="h">${r.i} ${r.h}</div>
+      ${r.n ? `<div class="t"><b>${esc(r.n)}</b></div>` : ""}
+      <div class="t">${r.t}</div></div>`).join("")}
 
-    <h2>💡 世界遺産うんちく</h2>
+    <h2>💡 今日のうんちく</h2>
+    <div class="trivia today-trivia"><div class="h">${todaysTrivia.h}</div><div class="t">${todaysTrivia.t}</div></div>
+    <h2>📚 世界遺産うんちく集</h2>
     ${TRIVIA.map((t) => `<div class="trivia"><div class="h">${t.h}</div><div class="t">${t.t}</div></div>`).join("")}
   `;
+  el.querySelectorAll("[data-country]").forEach((r) => { r.onclick = () => gotoCountry(r.dataset.country); });
 }
-function bar(name, val, max) {
-  return `<div class="bar-row"><span class="bname">${esc(name)}</span>
-    <span class="btrack"><span class="bfill" style="width:${(val / max * 100).toFixed(0)}%"></span></span>
+function bar(name, val, max, opt) {
+  const pct = (val / max * 100).toFixed(0);
+  const rank = opt && opt.rank ? `<span class="brank">${opt.rank}</span>` : "";
+  const attrs = opt && opt.country
+    ? ` class="bar-row clickable" data-country="${esc(opt.country)}"`
+    : ' class="bar-row"';
+  return `<div${attrs}>${rank}<span class="bname">${esc(name)}</span>
+    <span class="btrack"><span class="bfill" style="width:${pct}%"></span></span>
     <span class="bval">${val}</span></div>`;
+}
+// 国別ランキング → 検索タブへジャンプ
+function gotoCountry(c) {
+  state.q = ""; state.types.clear(); state.danger = state.collected = state.wish = false;
+  state.region = ""; state.country = c; state.sort = "name";
+  document.getElementById("q").value = "";
+  document.querySelectorAll(".chip").forEach((x) => x.classList.remove("on"));
+  document.getElementById("regionSelect").value = "";
+  document.getElementById("countrySelect").value = c;
+  document.getElementById("sortSelect").value = "name";
+  switchTab("search");
+  applyFilters();
 }
 const TRIVIA = [
   { h: "世界遺産のはじまり", t: "世界遺産条約は1972年に採択。1978年に最初の12件が登録されました。" },
@@ -285,38 +420,134 @@ const TRIVIA = [
   { h: "3つの分類", t: "文化遺産・自然遺産、その両方の価値を持つ複合遺産の3種類。登録基準(i)〜(vi)が文化、(vii)〜(x)が自然です。" },
   { h: "危機遺産とは", t: "紛争・開発・災害などで価値が脅かされ、緊急の保護が必要と判断された遺産。リストは毎年見直されます。" },
   { h: "優劣はない", t: "すべての世界遺産は『顕著な普遍的価値』を持つものとして対等。公式な人気順位は存在しません。" },
+  { h: "登録までの道のり", t: "まず各国が暫定リストに記載し、推薦書を提出。ICOMOS（文化）やIUCN（自然）といった諮問機関の審査を経て、年1回の世界遺産委員会で決まります。" },
+  { h: "登録が消えることも", t: "価値が失われたと判断されると登録抹消されることも。これまでにアラビアオリックスの保護区（オマーン）などの例があります。" },
+  { h: "国境を越える遺産", t: "複数の国が共同で持つ世界遺産もあります。シュトルーヴェの測地弧はなんと10か国にまたがっています。" },
+  { h: "複合遺産はレア", t: "文化と自然の両方の価値を持つ複合遺産は全体のわずか3%ほど。とても貴重な存在です。" },
+  { h: "無形文化遺産は別モノ", t: "和食やお祭りなどの「無形文化遺産」は世界遺産とは別の制度。世界遺産は不動産（建物や自然）が対象です。" },
+  { h: "委員会は年に1回", t: "世界遺産委員会は毎年1回開催され、新規登録・危機遺産・登録抹消などを審議します。開催地は毎年変わります。" },
+  { h: "暫定リストという待合室", t: "世界遺産を目指す物件は、まず各国の暫定リストに載る必要があります。日本にも登録を待つ候補があります。" },
 ];
 
 // ===== コレクション =====
+// 称号（閲覧数に応じてレベルアップ）
+const RANKS = [
+  { need: 0, icon: "🌱", name: "冒険前夜" },
+  { need: 1, icon: "👟", name: "見習いトラベラー" },
+  { need: 10, icon: "🎒", name: "かけだし探検家" },
+  { need: 30, icon: "🧭", name: "世界を歩く人" },
+  { need: 60, icon: "⛺", name: "ベテラン探検家" },
+  { need: 100, icon: "🗺", name: "世界遺産ハンター" },
+  { need: 200, icon: "🏺", name: "遺産マイスター" },
+  { need: 400, icon: "🦉", name: "世界の賢者" },
+  { need: 700, icon: "🌟", name: "レジェンド探検家" },
+  { need: 1171, icon: "👑", name: "世界遺産マスター" },
+];
+function currentRank(n) {
+  let cur = RANKS[0], next = null;
+  for (const r of RANKS) { if (n >= r.need) cur = r; else { next = r; break; } }
+  return { cur, next };
+}
+
 function renderCollection() {
   const el = document.getElementById("collectionContent");
   const total = SITES.length;
-  const doneIds = Object.keys(collection.done).map(Number);
   const wishIds = Object.keys(collection.wish).map(Number);
-  const doneCount = doneIds.length;
+  const doneSites = SITES.filter((s) => isDone(s.id));
+  const wishSites = SITES.filter((s) => isWish(s.id));
+  const doneCount = doneSites.length;
   const pct = total ? (doneCount / total * 100) : 0;
 
-  // 地域別の制覇率
+  // 称号
+  const { cur, next } = currentRank(doneCount);
+  const rankProg = next ? ((doneCount - cur.need) / (next.need - cur.need) * 100) : 100;
+
+  // 訪れた国・地域
+  const doneCountries = new Set(), doneRegions = new Set();
+  doneSites.forEach((s) => s.countries.forEach((c) => { doneCountries.add(c); doneRegions.add(regionOf(c)); }));
+  const allRegions = new Set(SITES.map((s) => regionOf(s.countries[0] || "")));
+
+  // 地域別・分類別の制覇率
   const regionTotals = {}, regionDone = {};
   SITES.forEach((s) => {
     const r = regionOf(s.countries[0] || "");
     regionTotals[r] = (regionTotals[r] || 0) + 1;
     if (isDone(s.id)) regionDone[r] = (regionDone[r] || 0) + 1;
   });
+  const typeTotals = {}, typeDone = {};
+  SITES.forEach((s) => {
+    typeTotals[s.type] = (typeTotals[s.type] || 0) + 1;
+    if (isDone(s.id)) typeDone[s.type] = (typeDone[s.type] || 0) + 1;
+  });
 
-  const doneSites = SITES.filter((s) => isDone(s.id));
-  const wishSites = SITES.filter((s) => isWish(s.id));
+  // 実績バッジ
+  const doneOf = (pred) => doneSites.filter(pred).length;
+  const jpTotal = SITES.filter((s) => s.countries.includes("日本")).length;
+  const ACHIEVEMENTS = [
+    { icon: "🎌", name: "はじめの一歩", desc: "1件を閲覧する", now: doneCount, need: 1 },
+    { icon: "🔟", name: "コレクター", desc: "10件を閲覧する", now: doneCount, need: 10 },
+    { icon: "🎖", name: "半世紀", desc: "50件を閲覧する", now: doneCount, need: 50 },
+    { icon: "💯", name: "3ケタの人", desc: "100件を閲覧する", now: doneCount, need: 100 },
+    { icon: "🏛", name: "文化通", desc: "文化遺産を30件", now: doneOf((s) => s.type === "cultural"), need: 30 },
+    { icon: "🌋", name: "自然派", desc: "自然遺産を10件", now: doneOf((s) => s.type === "natural"), need: 10 },
+    { icon: "🔆", name: "いいとこどり", desc: "複合遺産を5件", now: doneOf((s) => s.type === "mixed"), need: 5 },
+    { icon: "⚠️", name: "見守る人", desc: "危機遺産を5件", now: doneOf((s) => s.danger), need: 5 },
+    { icon: "🗾", name: "日本制覇", desc: `日本の${jpTotal}件すべて`, now: doneOf((s) => s.countries.includes("日本")), need: jpTotal },
+    { icon: "🧳", name: "10か国めぐり", desc: "10か国の遺産を閲覧", now: doneCountries.size, need: 10 },
+    { icon: "🌍", name: "世界一周", desc: `全${allRegions.size}地域で1件ずつ`, now: doneRegions.size, need: allRegions.size },
+    { icon: "⭐", name: "夢見る人", desc: "行きたいを10件登録", now: wishIds.length, need: 10 },
+  ];
+  const earned = ACHIEVEMENTS.filter((a) => a.now >= a.need).length;
 
   el.innerHTML = `
+    <div class="rank-card">
+      <div class="rank-icon">${cur.icon}</div>
+      <div class="rank-body">
+        <div class="rank-label">いまの称号</div>
+        <div class="rank-name">${cur.name}</div>
+        ${next
+          ? `<div class="rank-track"><div class="rank-fill" style="width:${rankProg.toFixed(0)}%"></div></div>
+             <div class="rank-next">あと <b>${next.need - doneCount}件</b> で ${next.icon} ${next.name}</div>`
+          : `<div class="rank-next">全制覇おめでとうございます！</div>`}
+      </div>
+    </div>
+
     <h2>🏆 制覇状況</h2>
     <div class="ratio-wrap">
       <div class="ratio-num">${doneCount} <span style="font-size:16px;color:var(--muted)">/ ${total}</span></div>
       <div class="ratio-track"><div class="ratio-fill" style="width:${pct.toFixed(1)}%"></div></div>
-      <div style="font-size:13px;color:var(--muted)">制覇率 ${pct.toFixed(1)}% ・ 行きたい ${wishIds.length}件</div>
+      <div style="font-size:13px;color:var(--muted)">制覇率 ${pct.toFixed(1)}%</div>
+      <div class="mini-stats">
+        <div class="mini-cell"><div class="num">${doneCountries.size}</div><div class="lbl">訪れた国</div></div>
+        <div class="mini-cell"><div class="num">${doneRegions.size}<small>/${allRegions.size}</small></div><div class="lbl">訪れた地域</div></div>
+        <div class="mini-cell"><div class="num">${wishIds.length}</div><div class="lbl">行きたい</div></div>
+        <div class="mini-cell"><div class="num">${earned}<small>/${ACHIEVEMENTS.length}</small></div><div class="lbl">実績</div></div>
+      </div>
+    </div>
+
+    <h2>🏅 実績バッジ（${earned}/${ACHIEVEMENTS.length}）</h2>
+    <div class="ach-grid">
+      ${ACHIEVEMENTS.map((a) => {
+        const ok = a.now >= a.need;
+        const prog = Math.min(100, a.now / a.need * 100);
+        return `<div class="ach ${ok ? "earned" : ""}">
+          <div class="ach-icon">${a.icon}</div>
+          <div class="ach-name">${a.name}</div>
+          <div class="ach-desc">${a.desc}</div>
+          ${ok ? `<div class="ach-got">達成！</div>`
+               : `<div class="ach-track"><div class="ach-fill" style="width:${prog.toFixed(0)}%"></div></div>
+                  <div class="ach-prog">${a.now}/${a.need}</div>`}
+        </div>`;
+      }).join("")}
     </div>
 
     <h2>🗺 地域別の制覇率</h2>
-    ${Object.keys(regionTotals).sort().map((r) => bar(r, regionDone[r] || 0, regionTotals[r])).join("")}
+    ${Object.keys(regionTotals).sort((a, b) => regionTotals[b] - regionTotals[a])
+      .map((r) => pctBar(r, regionDone[r] || 0, regionTotals[r])).join("")}
+
+    <h2>🥧 分類別の制覇率</h2>
+    ${["cultural", "natural", "mixed"].filter((t) => typeTotals[t])
+      .map((t) => pctBar(TYPE_LABEL[t], typeDone[t] || 0, typeTotals[t])).join("")}
 
     <h2>✅ 閲覧済み（${doneCount}）</h2>
     ${doneCount ? `<div class="card-grid" id="colDone"></div>` : '<p class="empty">まだありません。遺産の詳細から「閲覧済み」を押そう。</p>'}
@@ -326,6 +557,13 @@ function renderCollection() {
   `;
   if (doneCount) { const g = document.getElementById("colDone"); doneSites.forEach((s) => g.appendChild(cardEl(s))); }
   if (wishIds.length) { const g = document.getElementById("colWish"); wishSites.forEach((s) => g.appendChild(cardEl(s))); }
+}
+// 進捗バー（n/total と % を表示）
+function pctBar(name, val, max) {
+  const pct = max ? (val / max * 100) : 0;
+  return `<div class="bar-row"><span class="bname">${esc(name)}</span>
+    <span class="btrack"><span class="bfill" style="width:${pct.toFixed(0)}%"></span></span>
+    <span class="bval wide">${val}/${max}<small>（${pct.toFixed(0)}%）</small></span></div>`;
 }
 
 // ===== UI バインド =====
@@ -367,20 +605,20 @@ function bindUI() {
 
   // タブ切替
   document.querySelectorAll(".tabbtn").forEach((b) => {
-    b.onclick = () => {
-      document.querySelectorAll(".tabbtn").forEach((x) => x.classList.remove("active"));
-      b.classList.add("active");
-      const tab = b.dataset.tab;
-      document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
-      document.getElementById("tab-" + tab).classList.add("active");
-      if (tab === "stats") renderStats();
-      if (tab === "collection") renderCollection();
-      window.scrollTo(0, 0);
-    };
+    b.onclick = () => switchTab(b.dataset.tab);
   });
 
   document.getElementById("detailClose").onclick = closeDetail;
   document.getElementById("detail").onclick = (e) => { if (e.target.id === "detail") closeDetail(); };
+}
+
+function switchTab(tab) {
+  document.querySelectorAll(".tabbtn").forEach((x) => x.classList.toggle("active", x.dataset.tab === tab));
+  document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+  document.getElementById("tab-" + tab).classList.add("active");
+  if (tab === "stats") renderStats();
+  if (tab === "collection") renderCollection();
+  window.scrollTo(0, 0);
 }
 
 function esc(s) {

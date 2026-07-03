@@ -57,6 +57,11 @@ const NAME_OVERRIDE = {
   541: "ヴィリニュス旧市街",
 };
 
+// Wikidataの登録年が明らかに誤っているサイトの上書き（id → 正しい登録年）
+const YEAR_OVERRIDE = {
+  156: 1981, // セレンゲティ国立公園（Wikidata値1960は国立公園指定年）
+};
+
 // id ごとに最良の1アイテムを選ぶ
 const byId = new Map();
 for (const b of rows) {
@@ -94,7 +99,7 @@ for (const [id, it] of byId) {
     name_en: it.name_en,
     type: deriveType(it.criteria),
     criteria: it.criteria,
-    year: it.year ? parseInt(it.year, 10) : null,
+    year: YEAR_OVERRIDE[id] || (it.year ? parseInt(it.year, 10) : null),
     countries: cleanCountries(it.countries ? it.countries.split("|") : []),
     danger: dangerRefs.has(parseInt(id, 10)),
     lat: coord ? coord.lat : null,
