@@ -72,6 +72,40 @@ async function init() {
   setupInfiniteScroll();
   measureHeader();
   window.addEventListener("resize", measureHeader);
+  setupHistory();
+}
+
+// ===== 履歴管理（スマホの戻るボタンでアプリ内を戻れるように） =====
+let activeTab = "search";
+let suppressHistory = false; // 戻るボタン起因のUI操作では履歴を積まない
+
+function setupHistory() {
+  history.replaceState({ tab: "search" }, "");
+  window.addEventListener("popstate", (e) => {
+    const st = e.state || { tab: "search" };
+    suppressHistory = true;
+    try {
+      if (st.detail != null) {
+        // 「進む」で詳細モーダルの状態に戻ってきた場合
+        if (st.tab && st.tab !== activeTab) switchTab(st.tab);
+        openDetail(st.detail);
+      } else {
+        hideDetail();
+        // 同じタブ内でモーダルを閉じただけなら再描画もスクロールもしない
+        if ((st.tab || "search") !== activeTab) switchTab(st.tab || "search");
+      }
+    } finally {
+      suppressHistory = false;
+    }
+  });
+}
+function pushUIState(state) {
+  if (!suppressHistory) history.pushState(state, "");
+}
+// タブ移動（ユーザー操作用。履歴を積んでから切替）
+function navTab(tab) {
+  if (tab !== activeTab) pushUIState({ tab });
+  switchTab(tab);
 }
 
 // サブナビをヘッダー直下に固定するため、ヘッダーの実高さをCSS変数に反映
@@ -217,7 +251,10 @@ function openDetail(id) {
     saveCollection(); openDetail(id);
   };
 
-  document.getElementById("detail").hidden = false;
+  const overlay = document.getElementById("detail");
+  const wasHidden = overlay.hidden;
+  overlay.hidden = false;
+  if (wasHidden) pushUIState({ tab: activeTab, detail: s.id }); // 戻るボタンでモーダルを閉じられるように
   if (s.lat != null) initMap(s);
 }
 
@@ -247,7 +284,12 @@ function loadLeaflet() {
   });
 }
 
-function closeDetail() { document.getElementById("detail").hidden = true; }
+// ×ボタン等での閉じ：履歴に積んだ状態なら back() で戻す（履歴とUIのズレを防ぐ）
+function closeDetail() {
+  if (history.state && history.state.detail != null) { history.back(); return; }
+  hideDetail();
+}
+function hideDetail() { document.getElementById("detail").hidden = true; }
 
 // ===== 統計・うんちく =====
 const TYPE_COLOR = { cultural: "#2c5b88", natural: "#2f6b3c", mixed: "#c79a3a", unknown: "#a8a293" };
@@ -491,7 +533,7 @@ function gotoCountry(c) {
   document.getElementById("regionSelect").value = "";
   document.getElementById("countrySelect").value = c;
   document.getElementById("sortSelect").value = "name";
-  switchTab("search");
+  navTab("search");
   applyFilters();
 }
 const TRIVIA = [
@@ -696,9 +738,9 @@ function bindUI() {
     applyFilters();
   };
 
-  // タブ切替
+  // タブ切替（履歴を積む＝戻るボタンで前のタブへ戻れる）
   document.querySelectorAll(".tabbtn").forEach((b) => {
-    b.onclick = () => switchTab(b.dataset.tab);
+    b.onclick = () => navTab(b.dataset.tab);
   });
 
   document.getElementById("detailClose").onclick = closeDetail;
@@ -706,6 +748,7 @@ function bindUI() {
 }
 
 function switchTab(tab) {
+  activeTab = tab;
   document.querySelectorAll(".tabbtn").forEach((x) => x.classList.toggle("active", x.dataset.tab === tab));
   document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
   document.getElementById("tab-" + tab).classList.add("active");
