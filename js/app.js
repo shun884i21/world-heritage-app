@@ -70,6 +70,14 @@ async function init() {
   bindUI();
   applyFilters();
   setupInfiniteScroll();
+  measureHeader();
+  window.addEventListener("resize", measureHeader);
+}
+
+// サブナビをヘッダー直下に固定するため、ヘッダーの実高さをCSS変数に反映
+function measureHeader() {
+  const h = document.querySelector(".app-header");
+  if (h) document.documentElement.style.setProperty("--header-h", h.offsetHeight + "px");
 }
 
 function buildSelects() {
@@ -303,6 +311,8 @@ function decadeChartHTML() {
     <p class="chart-note">年代別の登録数。1年で最も多かったのは <b>${peak[0]}年の${peak[1]}件</b> です。</p>`;
 }
 
+let statsSection = "overview"; // 表示中のセクション（切替式・スクロール削減）
+
 function renderStats() {
   const el = document.getElementById("statsContent");
   const total = SITES.length;
@@ -346,57 +356,121 @@ function renderStats() {
     { i: "✍️", h: "いちばん長い名前", t: `${longName.name.length}文字あります。`, id: longName.id, n: longName.name },
   ];
 
+  const SEC = {
+    overview: `
+      <div class="today-box" ${todaysSite ? `onclick="openDetail(${todaysSite.id})"` : ""}>
+        <div class="today-label">🎁 今日の世界遺産（毎日変わります）</div>
+        ${todaysSite ? `
+          <div class="today-body">
+            ${todaysSite.image ? `<img class="today-img" src="${imgUrl(todaysSite.image, 300)}" alt="" onerror="this.style.display='none'">` : ""}
+            <div>
+              <div class="today-name">${esc(todaysSite.name)}</div>
+              <div class="today-sub">${esc(todaysSite.countries.join("・"))}${todaysSite.year ? " / " + todaysSite.year + "年登録" : ""}</div>
+              <div class="today-hint">タップして解説を読む →</div>
+            </div>
+          </div>` : ""}
+      </div>
+      <h2>📊 全体の数字</h2>
+      <div class="stat-cards">
+        <div class="stat-cell"><div class="num">${total}</div><div class="lbl">総物件数</div></div>
+        <div class="stat-cell"><div class="num">${Object.keys(counts).length}</div><div class="lbl">国・地域</div></div>
+        <div class="stat-cell"><div class="num">${dgr}</div><div class="lbl">危機遺産</div></div>
+        <div class="stat-cell"><div class="num">${byType.cultural}</div><div class="lbl">文化遺産</div></div>
+        <div class="stat-cell"><div class="num">${byType.natural}</div><div class="lbl">自然遺産</div></div>
+        <div class="stat-cell"><div class="num">${descCount}</div><div class="lbl">解説収録</div></div>
+      </div>
+      <h2>💡 今日のうんちく</h2>
+      <div class="trivia today-trivia"><div class="h">${todaysTrivia.h}</div><div class="t">${todaysTrivia.t}</div></div>`,
+    charts: `
+      <h2>🥧 分類の内訳</h2>
+      ${donutSVG([
+        { label: "文化遺産", value: byType.cultural, color: TYPE_COLOR.cultural },
+        { label: "自然遺産", value: byType.natural, color: TYPE_COLOR.natural },
+        { label: "複合遺産", value: byType.mixed, color: TYPE_COLOR.mixed },
+        { label: "分類不明", value: byType.unknown, color: TYPE_COLOR.unknown },
+      ].filter((s) => s.value > 0), total, "件")}
+      <h2>🗺 地域別の分布</h2>
+      ${donutSVG(regionSegs, Object.keys(regionCounts).length, "地域")}
+      <h2>📈 登録数のあゆみ</h2>
+      ${decadeChartHTML()}`,
+    ranking: `
+      <h2>🏆 国別 保有数ランキング</h2>
+      <p class="chart-note">タップするとその国の遺産一覧にジャンプします。</p>
+      ${top.map(([c, n], i) => bar(c, n, maxC, { rank: i + 1, country: c })).join("")}`,
+    records: `
+      <h2>🎖 記録コーナー</h2>
+      ${records.map((r) => `<div class="trivia ${r.id ? "clickable" : ""}" ${r.id ? `onclick="openDetail(${r.id})"` : ""}>
+        <div class="h">${r.i} ${r.h}</div>
+        ${r.n ? `<div class="t"><b>${esc(r.n)}</b></div>` : ""}
+        <div class="t">${r.t}</div></div>`).join("")}`,
+    trivia: triviaCarouselHTML(),
+  };
+  const NAV = [
+    ["overview", "🎁 きょう"],
+    ["charts", "🥧 グラフ"],
+    ["ranking", "🏆 ランキング"],
+    ["records", "🎖 記録"],
+    ["trivia", "💡 うんちく"],
+  ];
+
   el.innerHTML = `
-    <div class="today-box" ${todaysSite ? `onclick="openDetail(${todaysSite.id})"` : ""}>
-      <div class="today-label">🎁 今日の世界遺産（毎日変わります）</div>
-      ${todaysSite ? `
-        <div class="today-body">
-          ${todaysSite.image ? `<img class="today-img" src="${imgUrl(todaysSite.image, 300)}" alt="" onerror="this.style.display='none'">` : ""}
-          <div>
-            <div class="today-name">${esc(todaysSite.name)}</div>
-            <div class="today-sub">${esc(todaysSite.countries.join("・"))}${todaysSite.year ? " / " + todaysSite.year + "年登録" : ""}</div>
-            <div class="today-hint">タップして解説を読む →</div>
-          </div>
-        </div>` : ""}
-    </div>
+    <div class="subnav">${NAV.map(([k, lbl]) => `<button class="subnav-btn ${statsSection === k ? "on" : ""}" data-sec="${k}">${lbl}</button>`).join("")}</div>
+    <div class="sec-body">${SEC[statsSection]}</div>`;
 
-    <h2>📊 全体の数字</h2>
-    <div class="stat-cards">
-      <div class="stat-cell"><div class="num">${total}</div><div class="lbl">総物件数</div></div>
-      <div class="stat-cell"><div class="num">${Object.keys(counts).length}</div><div class="lbl">国・地域</div></div>
-      <div class="stat-cell"><div class="num">${dgr}</div><div class="lbl">危機遺産</div></div>
-    </div>
-
-    <h2>🥧 分類の内訳</h2>
-    ${donutSVG([
-      { label: "文化遺産", value: byType.cultural, color: TYPE_COLOR.cultural },
-      { label: "自然遺産", value: byType.natural, color: TYPE_COLOR.natural },
-      { label: "複合遺産", value: byType.mixed, color: TYPE_COLOR.mixed },
-      { label: "分類不明", value: byType.unknown, color: TYPE_COLOR.unknown },
-    ].filter((s) => s.value > 0), total, "件")}
-
-    <h2>🗺 地域別の分布</h2>
-    ${donutSVG(regionSegs, Object.keys(regionCounts).length, "地域")}
-
-    <h2>📈 登録数のあゆみ</h2>
-    ${decadeChartHTML()}
-
-    <h2>🏆 国別 保有数ランキング</h2>
-    <p class="chart-note">タップするとその国の遺産一覧にジャンプします。</p>
-    ${top.map(([c, n], i) => bar(c, n, maxC, { rank: i + 1, country: c })).join("")}
-
-    <h2>🎖 記録コーナー</h2>
-    ${records.map((r) => `<div class="trivia ${r.id ? "clickable" : ""}" ${r.id ? `onclick="openDetail(${r.id})"` : ""}>
-      <div class="h">${r.i} ${r.h}</div>
-      ${r.n ? `<div class="t"><b>${esc(r.n)}</b></div>` : ""}
-      <div class="t">${r.t}</div></div>`).join("")}
-
-    <h2>💡 今日のうんちく</h2>
-    <div class="trivia today-trivia"><div class="h">${todaysTrivia.h}</div><div class="t">${todaysTrivia.t}</div></div>
-    <h2>📚 世界遺産うんちく集</h2>
-    ${TRIVIA.map((t) => `<div class="trivia"><div class="h">${t.h}</div><div class="t">${t.t}</div></div>`).join("")}
-  `;
+  el.querySelectorAll(".subnav-btn").forEach((b) => {
+    b.onclick = () => { statsSection = b.dataset.sec; renderStats(); window.scrollTo(0, 0); };
+  });
   el.querySelectorAll("[data-country]").forEach((r) => { r.onclick = () => gotoCountry(r.dataset.country); });
+  if (statsSection === "trivia") bindTriviaCarousel(el);
+}
+
+// うんちくカルーセル（横スワイプ1枚ずつ・スクロール不要で全部読める）
+function triviaCarouselHTML() {
+  const idx = daySeed() % TRIVIA.length;
+  const ordered = [...TRIVIA.slice(idx), ...TRIVIA.slice(0, idx)]; // 今日のうんちくを先頭に
+  const cards = ordered.map((t, i) => `
+    <div class="tcard ${i === 0 ? "today" : ""}">
+      <div class="tc-tag">${i === 0 ? "☀️ 今日のうんちく" : `うんちく No.${(idx + i) % TRIVIA.length + 1}`}</div>
+      <div class="tc-h">${t.h}</div>
+      <div class="tc-t">${t.t}</div>
+    </div>`).join("");
+  return `
+    <h2>💡 うんちく図鑑（全${TRIVIA.length}話）</h2>
+    <p class="chart-note">横にスワイプするか、ボタンでめくれます。</p>
+    <div class="tcarousel" id="tcar">${cards}</div>
+    <div class="tc-controls">
+      <button class="tc-btn" id="tcPrev">←</button>
+      <span class="tc-counter" id="tcCounter">1 / ${TRIVIA.length}</span>
+      <button class="tc-btn" id="tcNext">→</button>
+      <button class="tc-btn gold" id="tcRandom">🎲 ランダム</button>
+    </div>`;
+}
+function bindTriviaCarousel(root) {
+  const car = root.querySelector("#tcar");
+  const counter = root.querySelector("#tcCounter");
+  if (!car) return;
+  const N = TRIVIA.length;
+  const cardW = () => car.firstElementChild ? car.firstElementChild.offsetWidth + 10 : car.clientWidth;
+  let cur = 0;
+  const show = () => { counter.textContent = `${cur + 1} / ${N}`; };
+  const go = (i) => {
+    cur = Math.max(0, Math.min(N - 1, i));
+    car.scrollTo({ left: cur * cardW(), behavior: "smooth" });
+    show();
+  };
+  // 指スワイプで送った場合もカウンターを同期
+  car.addEventListener("scroll", () => {
+    const i = Math.round(car.scrollLeft / cardW());
+    if (i !== cur) { cur = Math.max(0, Math.min(N - 1, i)); show(); }
+  }, { passive: true });
+  root.querySelector("#tcPrev").onclick = () => go(cur - 1);
+  root.querySelector("#tcNext").onclick = () => go(cur + 1);
+  root.querySelector("#tcRandom").onclick = () => {
+    let r = Math.floor(Math.random() * N);
+    if (r === cur) r = (r + 1) % N;
+    go(r);
+  };
+  show();
 }
 function bar(name, val, max, opt) {
   const pct = (val / max * 100).toFixed(0);
@@ -505,65 +579,78 @@ function renderCollection() {
   ];
   const earned = ACHIEVEMENTS.filter((a) => a.now >= a.need).length;
 
+  const SEC = {
+    status: `
+      <div class="rank-card">
+        <div class="rank-icon">${cur.icon}</div>
+        <div class="rank-body">
+          <div class="rank-label">いまの称号</div>
+          <div class="rank-name">${cur.name}</div>
+          ${next
+            ? `<div class="rank-track"><div class="rank-fill" style="width:${rankProg.toFixed(0)}%"></div></div>
+               <div class="rank-next">あと <b>${next.need - doneCount}件</b> で ${next.icon} ${next.name}</div>`
+            : `<div class="rank-next">全制覇おめでとうございます！</div>`}
+        </div>
+      </div>
+      <h2>🏆 制覇状況</h2>
+      <div class="ratio-wrap">
+        <div class="ratio-num">${doneCount} <span style="font-size:16px;color:var(--muted)">/ ${total}</span></div>
+        <div class="ratio-track"><div class="ratio-fill" style="width:${pct.toFixed(1)}%"></div></div>
+        <div style="font-size:13px;color:var(--muted)">制覇率 ${pct.toFixed(1)}%</div>
+        <div class="mini-stats">
+          <div class="mini-cell"><div class="num">${doneCountries.size}</div><div class="lbl">訪れた国</div></div>
+          <div class="mini-cell"><div class="num">${doneRegions.size}<small>/${allRegions.size}</small></div><div class="lbl">訪れた地域</div></div>
+          <div class="mini-cell"><div class="num">${wishIds.length}</div><div class="lbl">行きたい</div></div>
+          <div class="mini-cell"><div class="num">${earned}<small>/${ACHIEVEMENTS.length}</small></div><div class="lbl">実績</div></div>
+        </div>
+      </div>
+      <h2>📈 地域別の制覇率</h2>
+      ${Object.keys(regionTotals).sort((a, b) => regionTotals[b] - regionTotals[a])
+        .map((r) => pctBar(r, regionDone[r] || 0, regionTotals[r])).join("")}
+      <h2>🥧 分類別の制覇率</h2>
+      ${["cultural", "natural", "mixed"].filter((t) => typeTotals[t])
+        .map((t) => pctBar(TYPE_LABEL[t], typeDone[t] || 0, typeTotals[t])).join("")}`,
+    badges: `
+      <h2>🏅 実績バッジ（${earned}/${ACHIEVEMENTS.length}）</h2>
+      <div class="ach-grid">
+        ${ACHIEVEMENTS.map((a) => {
+          const ok = a.now >= a.need;
+          const prog = Math.min(100, a.now / a.need * 100);
+          return `<div class="ach ${ok ? "earned" : ""}">
+            <div class="ach-icon">${a.icon}</div>
+            <div class="ach-name">${a.name}</div>
+            <div class="ach-desc">${a.desc}</div>
+            ${ok ? `<div class="ach-got">達成！</div>`
+                 : `<div class="ach-track"><div class="ach-fill" style="width:${prog.toFixed(0)}%"></div></div>
+                    <div class="ach-prog">${a.now}/${a.need}</div>`}
+          </div>`;
+        }).join("")}
+      </div>`,
+    done: `
+      <h2>✅ 閲覧済み（${doneCount}）</h2>
+      ${doneCount ? `<div class="card-grid" id="colDone"></div>` : '<p class="empty">まだありません。遺産の詳細から「閲覧済み」を押そう。</p>'}`,
+    wish: `
+      <h2>⭐ 行きたい（${wishIds.length}）</h2>
+      ${wishIds.length ? `<div class="card-grid" id="colWish"></div>` : '<p class="empty">まだありません。</p>'}`,
+  };
+  const NAV = [
+    ["status", "🏆 制覇状況"],
+    ["badges", `🏅 実績 ${earned}/${ACHIEVEMENTS.length}`],
+    ["done", `✅ 閲覧済み ${doneCount}`],
+    ["wish", `⭐ 行きたい ${wishIds.length}`],
+  ];
+
   el.innerHTML = `
-    <div class="rank-card">
-      <div class="rank-icon">${cur.icon}</div>
-      <div class="rank-body">
-        <div class="rank-label">いまの称号</div>
-        <div class="rank-name">${cur.name}</div>
-        ${next
-          ? `<div class="rank-track"><div class="rank-fill" style="width:${rankProg.toFixed(0)}%"></div></div>
-             <div class="rank-next">あと <b>${next.need - doneCount}件</b> で ${next.icon} ${next.name}</div>`
-          : `<div class="rank-next">全制覇おめでとうございます！</div>`}
-      </div>
-    </div>
+    <div class="subnav">${NAV.map(([k, lbl]) => `<button class="subnav-btn ${collSection === k ? "on" : ""}" data-sec="${k}">${lbl}</button>`).join("")}</div>
+    <div class="sec-body">${SEC[collSection]}</div>`;
 
-    <h2>🏆 制覇状況</h2>
-    <div class="ratio-wrap">
-      <div class="ratio-num">${doneCount} <span style="font-size:16px;color:var(--muted)">/ ${total}</span></div>
-      <div class="ratio-track"><div class="ratio-fill" style="width:${pct.toFixed(1)}%"></div></div>
-      <div style="font-size:13px;color:var(--muted)">制覇率 ${pct.toFixed(1)}%</div>
-      <div class="mini-stats">
-        <div class="mini-cell"><div class="num">${doneCountries.size}</div><div class="lbl">訪れた国</div></div>
-        <div class="mini-cell"><div class="num">${doneRegions.size}<small>/${allRegions.size}</small></div><div class="lbl">訪れた地域</div></div>
-        <div class="mini-cell"><div class="num">${wishIds.length}</div><div class="lbl">行きたい</div></div>
-        <div class="mini-cell"><div class="num">${earned}<small>/${ACHIEVEMENTS.length}</small></div><div class="lbl">実績</div></div>
-      </div>
-    </div>
-
-    <h2>🏅 実績バッジ（${earned}/${ACHIEVEMENTS.length}）</h2>
-    <div class="ach-grid">
-      ${ACHIEVEMENTS.map((a) => {
-        const ok = a.now >= a.need;
-        const prog = Math.min(100, a.now / a.need * 100);
-        return `<div class="ach ${ok ? "earned" : ""}">
-          <div class="ach-icon">${a.icon}</div>
-          <div class="ach-name">${a.name}</div>
-          <div class="ach-desc">${a.desc}</div>
-          ${ok ? `<div class="ach-got">達成！</div>`
-               : `<div class="ach-track"><div class="ach-fill" style="width:${prog.toFixed(0)}%"></div></div>
-                  <div class="ach-prog">${a.now}/${a.need}</div>`}
-        </div>`;
-      }).join("")}
-    </div>
-
-    <h2>🗺 地域別の制覇率</h2>
-    ${Object.keys(regionTotals).sort((a, b) => regionTotals[b] - regionTotals[a])
-      .map((r) => pctBar(r, regionDone[r] || 0, regionTotals[r])).join("")}
-
-    <h2>🥧 分類別の制覇率</h2>
-    ${["cultural", "natural", "mixed"].filter((t) => typeTotals[t])
-      .map((t) => pctBar(TYPE_LABEL[t], typeDone[t] || 0, typeTotals[t])).join("")}
-
-    <h2>✅ 閲覧済み（${doneCount}）</h2>
-    ${doneCount ? `<div class="card-grid" id="colDone"></div>` : '<p class="empty">まだありません。遺産の詳細から「閲覧済み」を押そう。</p>'}
-
-    <h2>⭐ 行きたい（${wishIds.length}）</h2>
-    ${wishIds.length ? `<div class="card-grid" id="colWish"></div>` : '<p class="empty">まだありません。</p>'}
-  `;
-  if (doneCount) { const g = document.getElementById("colDone"); doneSites.forEach((s) => g.appendChild(cardEl(s))); }
-  if (wishIds.length) { const g = document.getElementById("colWish"); wishSites.forEach((s) => g.appendChild(cardEl(s))); }
+  el.querySelectorAll(".subnav-btn").forEach((b) => {
+    b.onclick = () => { collSection = b.dataset.sec; renderCollection(); window.scrollTo(0, 0); };
+  });
+  if (collSection === "done" && doneCount) { const g = document.getElementById("colDone"); doneSites.forEach((s) => g.appendChild(cardEl(s))); }
+  if (collSection === "wish" && wishIds.length) { const g = document.getElementById("colWish"); wishSites.forEach((s) => g.appendChild(cardEl(s))); }
 }
+let collSection = "status"; // コレクションの表示セクション
 // 進捗バー（n/total と % を表示）
 function pctBar(name, val, max) {
   const pct = max ? (val / max * 100) : 0;
