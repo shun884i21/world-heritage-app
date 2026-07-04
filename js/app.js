@@ -128,19 +128,25 @@ function cardEl(s) {
   const el = document.createElement("div");
   el.className = "card";
   el.onclick = () => openDetail(s.id);
-  const badges = [];
-  if (s.type !== "unknown") badges.push(`<span class="badge ${s.type}">${TYPE_LABEL[s.type]}</span>`);
-  if (s.danger) badges.push('<span class="badge danger">危機</span>');
-  if (isDone(s.id)) badges.push('<span class="badge done">✓</span>');
-  if (isWish(s.id)) badges.push('<span class="badge wish">★</span>');
   const img = s.image
     ? `<img class="thumb" loading="lazy" src="${imgUrl(s.image, 300)}" alt="" onerror="this.removeAttribute('src')" />`
-    : '<div class="thumb"></div>';
-  el.innerHTML = `${img}
+    : '<div class="thumb noimg"></div>';
+  const typeBadge = s.type !== "unknown" ? `<span class="fbadge ${s.type}">${TYPE_LABEL[s.type]}</span>` : "";
+  const dangerBadge = s.danger ? '<span class="fbadge danger">⚠ 危機</span>' : "";
+  const marks = [];
+  if (isDone(s.id)) marks.push('<span class="mark done">✓</span>');
+  if (isWish(s.id)) marks.push('<span class="mark wish">★</span>');
+  const descDot = DESCRIPTIONS[s.id] ? '<span class="desc-dot" title="解説あり"></span>' : "";
+  el.innerHTML = `
+    <div class="thumb-wrap">
+      ${img}
+      <div class="thumb-grad"></div>
+      <div class="fbadges">${typeBadge}${dangerBadge}</div>
+      ${marks.length ? `<div class="marks">${marks.join("")}</div>` : ""}
+    </div>
     <div class="meta">
-      <div class="name">${esc(s.name)}</div>
-      <div class="country">${esc(s.countries.join("・"))}${s.year ? " / " + s.year : ""}</div>
-      <div class="badges">${badges.join("")}</div>
+      <div class="name">${descDot}${esc(s.name)}</div>
+      <div class="country"><span class="pin">📍</span>${esc(s.countries.join("・"))}${s.year ? `<span class="yr">${s.year}</span>` : ""}</div>
     </div>`;
   return el;
 }
@@ -572,7 +578,7 @@ function bindUI() {
   let t;
   qEl.oninput = () => { clearTimeout(t); t = setTimeout(() => { state.q = qEl.value; applyFilters(); }, 200); };
 
-  document.querySelectorAll("#typeFilters .chip").forEach((c) => {
+  document.querySelectorAll("#typeFilters .chip[data-type]").forEach((c) => {
     c.onclick = () => {
       const ty = c.dataset.type;
       if (state.types.has(ty)) { state.types.delete(ty); c.classList.remove("on"); }

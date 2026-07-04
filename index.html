@@ -19,24 +19,21 @@
     <!-- ===== 検索タブ ===== -->
     <section id="tab-search" class="tab active">
       <div class="search-box">
+        <span class="search-icon">🔍</span>
         <input type="search" id="q" placeholder="遺産名・国名で検索…" autocomplete="off" />
       </div>
 
       <div class="filters">
-        <div class="filter-group" id="typeFilters">
-          <span class="filter-label">分類</span>
+        <div class="chips-row" id="typeFilters">
           <button class="chip" data-type="cultural">🏛 文化</button>
           <button class="chip" data-type="natural">🌲 自然</button>
           <button class="chip" data-type="mixed">🔆 複合</button>
-        </div>
-        <div class="filter-group">
-          <span class="filter-label">条件</span>
+          <span class="chip-sep"></span>
           <button class="chip" id="dangerChip" data-danger="1">⚠️ 危機遺産</button>
           <button class="chip" id="collectedChip" data-collected="1">✅ 閲覧済み</button>
           <button class="chip" id="wishChip" data-wish="1">⭐ 行きたい</button>
         </div>
-        <div class="filter-group">
-          <span class="filter-label">国・地域</span>
+        <div class="selects-row">
           <select id="regionSelect">
             <option value="">地域すべて</option>
           </select>
@@ -48,11 +45,11 @@
             <option value="year_desc">登録新しい順</option>
             <option value="year_asc">登録古い順</option>
           </select>
+          <button class="reset-btn" id="resetBtn">クリア</button>
         </div>
-        <button class="reset-btn" id="resetBtn">クリア</button>
       </div>
 
-      <p class="result-count"><span id="resultCount">0</span> 件</p>
+      <p class="result-count"><span class="rc-pill"><b id="resultCount">0</b> 件ヒット</span></p>
       <div id="list" class="card-grid"></div>
       <div id="sentinel"></div>
     </section>
