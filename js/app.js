@@ -65,6 +65,16 @@ async function init() {
   try { DESCRIPTIONS = await fetch("data/descriptions.json").then((r) => (r.ok ? r.json() : {})); }
   catch { DESCRIPTIONS = {}; }
 
+  // うんちく（あれば）。since（解禁日）が今日以前のものだけを採用＝毎週自動で増える
+  try {
+    const pool = await fetch("data/trivia.json").then((r) => (r.ok ? r.json() : null));
+    if (Array.isArray(pool) && pool.length) {
+      const today = new Date().toISOString().slice(0, 10);
+      const avail = pool.filter((t) => !t.since || t.since <= today);
+      if (avail.length) TRIVIA = avail;
+    }
+  } catch { /* フォールバックの内蔵12本を使う */ }
+
   document.getElementById("totalCount").textContent = SITES.length;
   buildSelects();
   bindUI();
@@ -536,7 +546,10 @@ function gotoCountry(c) {
   navTab("search");
   applyFilters();
 }
-const TRIVIA = [
+// うんちくは data/trivia.json から読み込み、each の since（解禁日 YYYY-MM-DD）が
+// 今日以前のものだけを表示する（＝毎週1本ずつ自動で増えていく）。
+// 読み込み前・オフライン時のフォールバックとして最初の12本を内蔵しておく。
+const TRIVIA_FALLBACK = [
   { h: "世界遺産のはじまり", t: "世界遺産条約は1972年に採択。1978年に最初の12件が登録されました。" },
   { h: "日本の最初", t: "日本初の登録は1993年。法隆寺地域の仏教建造物・姫路城（文化）と、屋久島・白神山地（自然）の4件です。" },
   { h: "3つの分類", t: "文化遺産・自然遺産、その両方の価値を持つ複合遺産の3種類。登録基準(i)〜(vi)が文化、(vii)〜(x)が自然です。" },
@@ -550,6 +563,7 @@ const TRIVIA = [
   { h: "委員会は年に1回", t: "世界遺産委員会は毎年1回開催され、新規登録・危機遺産・登録抹消などを審議します。開催地は毎年変わります。" },
   { h: "暫定リストという待合室", t: "世界遺産を目指す物件は、まず各国の暫定リストに載る必要があります。日本にも登録を待つ候補があります。" },
 ];
+let TRIVIA = TRIVIA_FALLBACK;
 
 // ===== コレクション =====
 // 称号（閲覧数に応じてレベルアップ）
