@@ -1,5 +1,5 @@
 // 世界遺産ずかん Service Worker
-const CACHE = "wh-v11";
+const CACHE = "wh-v12";
 const ASSETS = [
   "./",
   "./index.html",
